@@ -1,0 +1,71 @@
+Practical Machine Learning Project 
+========================================================
+
+This is the project of the course "Practical Machine Learning". The aim of this project is to predict the manner in which the participants of the experiment did an exercise. The exercise consists on lifting a weight. The information of the movement is catched by several sensors and stored in a dataframe.
+
+For more information you can read the article showed in this link: http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf
+
+The first thing is to take a look in to the data and discard some features which don't provide us information at all.In this case all columns including NA values will be removed.
+
+After the cleaning up, data is loaded.
+
+```{r}
+data = read.csv2(file.path("C:/Users/HOME/Documents/Proyecto_Machine_Learnin/Training_Set","training_data_cleaned.csv"))
+table(data)
+```
+
+Now is time for split data into Training set and Test set.
+```{r}
+library(caret)
+set.seed(1234)
+inTrain<-createDataPartition(y=data$classe,p=0.7,list=FALSE)
+trainingSet<-data[inTrain,]
+testingSet<-data[-inTrain,]
+```
+
+Although the number of features has been reduced there are still too many features that may not provide useful information for predicting.They are features that have little variability. In this case it is applied a function that will show up those features.
+
+```{r}
+nsv<-nearZeroVar(trainingSet[,-53],saveMetrics=TRUE)
+nsv
+```
+
+As result all variables have enough variability for being used as predictors. However they are too many for the computer to run with all of them. For reducing the number of features we will try in this case to search for highly correlated variables.
+
+```{r}
+M<-abs(cor(trainingSet[sapply(trainingSet,is.numeric)]))
+diag(M)<-0
+which(M>0.8,arr.ind=T)
+```
+
+From the results we can delete now some variables which are highly correlated. We have to do it both in trainingSet and testingSet.
+
+```{r}
+trainingSet$accel_belt_y<-trainingSet$accel_belt_z<-trainingSet$magnet_belt_x<-trainingSet$magnet_arm_x<-trainingSet$magnet_arm_z<-NULL
+
+testingSet$accel_belt_y<-testingSet$accel_belt_z<-testingSet$magnet_belt_x<-testingSet$magnet_arm_x<-testingSet$magnet_arm_z<-NULL
+```
+
+At this moment we need in somehow compress all features in new ones that are a weighted combination of original features. This method called principal components (PCA) will allow us to have a few predictors with high significance.
+
+```{r}
+preProc <- preProcess(trainingSet[sapply(trainingSet,is.numeric)],method="pca",pcaComp=2)
+trainPC <- predict(preProc,trainingSet[sapply(trainingSet,is.numeric)])
+```
+
+Finally it will be fitted the model with the method "Naive Bayes"
+
+```{r}
+modelFit<-train(trainingSet$classe~.,method="nb",data=trainPC)
+```
+
+Now it is time to predict values from the testing set and see how well the model has done it.
+
+```{r}
+testPC <- predict(preProc,testingSet[sapply(testingSet,is.numeric)])
+testing_results<-predict(modelFit,testPC)
+
+confusionMatrix(testingSet$classe,testing_results)
+```
+
+Results show a not good performance of the model. Among other things the selection of the features and their interpretation might not have been precise and that has provocated the malfunction of the system.
